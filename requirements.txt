@@ -1,0 +1,4 @@
+# Runtime dependencies for local development and non-containerized builds.
+PyQt5>=5.15
+pyserial>=3.5
+PyYAML>=6.0

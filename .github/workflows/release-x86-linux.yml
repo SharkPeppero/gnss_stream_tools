@@ -1,0 +1,73 @@
+name: Release x86 Linux
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (for example v1.0.0). Leave blank to only build an artifact."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up emulation for 32-bit x86 Docker image
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build x86 Linux executable
+        run: ./packaging/x86-linux/build.sh
+
+      - name: Build AMD64 Linux executable
+        run: ./packaging/amd64-linux/build.sh
+
+      - name: Verify executable architecture
+        run: |
+          file dist/x86-linux/gnss_raw_stream-x86-linux
+          file dist/x86-linux/gnss_raw_stream-x86-linux | grep -Eq 'ELF 32-bit.*Intel 80386'
+          file dist/amd64-linux/gnss_raw_stream-amd64-linux
+          file dist/amd64-linux/gnss_raw_stream-amd64-linux | grep -Eq 'ELF 64-bit.*x86-64'
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnss_raw_stream-x86-linux
+          path: dist/x86-linux/gnss_raw_stream-x86-linux
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload AMD64 build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnss_raw_stream-amd64-linux
+          path: dist/amd64-linux/gnss_raw_stream-amd64-linux
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create or update GitHub Release
+        if: github.ref_type == 'tag' || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_FILE: dist/x86-linux/gnss_raw_stream-x86-linux
+          AMD64_RELEASE_FILE: dist/amd64-linux/gnss_raw_stream-amd64-linux
+        run: |
+          gh release create "$RELEASE_TAG" "$RELEASE_FILE" "$AMD64_RELEASE_FILE" \
+            --title "$RELEASE_TAG" \
+            --generate-notes \
+            || gh release upload "$RELEASE_TAG" "$RELEASE_FILE" "$AMD64_RELEASE_FILE" --clobber
