@@ -87,14 +87,14 @@ python3 gnss_raw_stream.py \
 
 ## 配置与安全
 
-默认配置在 `config.py`。其中的 NTRIP 地址、挂载点、账号和密码只适合本地受控环境。
-
-向其他人交付工具前，请删除或替换 `config.py` 内的凭据。建议仅提供不含账号密码的配置模板，由实际使用者在 GUI 中填写，或在启动环境中设置：
+默认配置在 `config.py`。NTRIP 账号和密码默认留空，可在 GUI 中填写，或通过环境变量提供：
 
 ```bash
 export NTRIP_USERNAME='your_username'
 export NTRIP_PASSWORD='your_password'
 ```
+
+构建时不要写入真实凭据；已提交过的凭据需要在 NTRIP 服务端更换。
 
 ## 打包交付
 
@@ -121,17 +121,35 @@ chmod +x gnss_raw_stream-x86-linux
 
 如需 Windows x86 `.exe`，必须在 32 位 Windows 构建环境中重新运行 PyInstaller；Linux 上构建的 ELF 不能转换成 Windows `.exe`。
 
+### AMD64（x86-64）Linux 单文件程序
+
+AMD 或 Intel 的 64 位 x86 Linux 机器使用 AMD64 版本。构建机需要 Docker Buildx：
+
+```bash
+./packaging/amd64-linux/build.sh
+file dist/amd64-linux/gnss_raw_stream-amd64-linux
+```
+
+预期 `file` 输出包含 `ELF 64-bit` 和 `x86-64`。将文件复制到目标机后执行：
+
+```bash
+chmod +x gnss_raw_stream-amd64-linux
+./gnss_raw_stream-amd64-linux
+```
+
+目标机仍需要与 Debian bookworm 构建环境兼容的 Linux 系统和基础图形环境。
+
 ### GitHub Actions 自动发布
 
-仓库内的 [GitHub Actions 工作流](.github/workflows/release-x86-linux.yml) 会在推送 `v*` 格式标签时构建并发布 x86 Linux 文件。例如：
+仓库内的 [GitHub Actions 工作流](.github/workflows/release-x86-linux.yml) 会在推送 `main` 或 `master` 分支时构建 32 位 x86 与 AMD64 Linux 文件，并提供 Actions Artifact。推送 `v*` 格式标签时还会创建 GitHub Release，例如：
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-工作流使用 32 位 x86 Docker 镜像构建，验证产物是 `ELF 32-bit / Intel 80386`，然后把 `gnss_raw_stream-x86-linux` 上传为该标签对应 GitHub Release 的附件。每次工作流运行也会保留 30 天 Actions Artifact。
+工作流分别验证 `ELF 32-bit / Intel 80386` 和 `ELF 64-bit / x86-64`，并把 `gnss_raw_stream-x86-linux` 与 `gnss_raw_stream-amd64-linux` 上传为该标签对应 GitHub Release 的附件。每次工作流运行也会保留 30 天 Actions Artifact。
 
 也可以从 GitHub 的 **Actions → Release x86 Linux → Run workflow** 手动运行：留空 tag 仅生成 Artifact；填写例如 `v1.0.1` 会同时创建或更新该 Release。
 
-首次使用前，请确认仓库 **Settings → Actions → General → Workflow permissions** 设置为 **Read and write permissions**；否则工作流无法创建 Release。注意：`config.py` 中的默认 NTRIP 凭据会被编入发布文件，发布前应先移除或替换它们。
+工作流已经声明 `contents: write` 权限；仓库设置不能禁止 Actions 写入，否则无法创建 Release。发布文件不包含默认 NTRIP 账号密码，运行时可在 GUI 中填写或设置环境变量。
